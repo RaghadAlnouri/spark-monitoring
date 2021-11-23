@@ -1,0 +1,65 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+variables:
+- group: SCALA_SPARK
+trigger:
+- master
+stages:
+  - stage: Generate_jar_files
+    displayName: Generating monitoring jar files
+    jobs:
+    - job: Generate_jar_files
+      pool:
+        vmImage: ubuntu-latest
+      displayName: Running Docker commands
+      steps:
+      - task: Bash@3
+        displayName: Creating profiles
+        inputs:
+          targetType: inline
+          script: |
+            set -x
+            ls -la src/spark-listeners/
+            ls -la src/spark-listeners-loganalytics
+            ls -la ./build.sh
+            chmod +x ./build.sh
+            ls -la ./build.sh
+            docker --version
+            # docker run --rm -v `pwd`:/spark-monitoring -v "$HOME/.m2":/root/.m2 maven:3.6.3-jdk-8 /spark-monitoring/build.sh
+            docker run --rm -v `pwd`:/spark-monitoring -v "$HOME/.m2":/root/.m2 -w /spark-monitoring/src maven:3.6.3-jdk-8 mvn install -P "scala-$(scala)_spark-$(spark)"
+            pwd
+            ls -la src/spark-listeners/target
+            ls -la src/spark-listeners-loganalytics/target
+      - task: CopyFiles@2
+        inputs:
+          SourceFolder: 'src/spark-listeners/target'
+          Contents: 'spark-listeners*sources.jar'
+          TargetFolder: '$(Build.ArtifactStagingDirectory)/spark-listeners'
+          CleanTargetFolder: true
+      - task: CopyFiles@2
+        inputs:
+          SourceFolder: 'src/spark-listeners-loganalytics/target'
+          Contents: 'spark-listeners-loganalytics*sources.jar'
+          TargetFolder: '$(Build.ArtifactStagingDirectory)/spark-listeners-loganalytics'
+          CleanTargetFolder: true
+      - task: UniversalPackages@0
+        inputs:
+          command: 'publish'
+          publishDirectory: '$(Build.ArtifactStagingDirectory)/spark-listeners'
+          feedsToUsePublish: 'internal'
+          vstsFeedPublish: '3eaba91a-be24-434b-ab23-39304d145c81/4649206d-b632-4528-a3f3-0eed03b78bb3'
+          vstsFeedPackagePublish: 'spark-listeners_$(spark)_$(scala)-1.0.0-sources.jar'
+          versionOption: 'patch'
+          verbosity: 'Trace'
+      - task: UniversalPackages@0
+        inputs:
+          command: 'publish'
+          publishDirectory: '$(Build.ArtifactStagingDirectory)/spark-listeners-loganalytics'
+          feedsToUsePublish: 'internal'
+          vstsFeedPublish: '3eaba91a-be24-434b-ab23-39304d145c81/4649206d-b632-4528-a3f3-0eed03b78bb3'
+          vstsFeedPackagePublish: 'spark-listeners-loganalytics_$(spark)_$(scala)-1.0.0-sources.jar'
+          versionOption: 'patch'
+          verbosity: 'Trace'
